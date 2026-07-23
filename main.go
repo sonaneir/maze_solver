@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"mazesolver/internal/solver"
 	"os"
 )
 
@@ -16,15 +17,30 @@ func main() {
 
 	log.Printf("Solving maze %q and saving it as %q", inputFile, outputFile)
 
-	_, err := openMaze(inputFile)
+	s, err := solver.New(inputFile)
 	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, "ERROR:", err)
-		os.Exit(1)
+		exit(err)
+	}
+
+	err = s.Solve()
+	if err != nil {
+		exit(err)
+	}
+
+	err = s.SaveSolution(outputFile)
+	if err != nil {
+		exit(err)
 	}
 }
 
 // usage displays the usage of the binary and exits the program.
 func usage() {
 	_, _ = fmt.Fprintln(os.Stderr, "Usage: maze_solver input.png output.png")
+	os.Exit(1)
+}
+
+// exit prints the error and exits the program.
+func exit(err error) {
+	_, _ = fmt.Fprintf(os.Stderr, "Error: %s", err)
 	os.Exit(1)
 }
