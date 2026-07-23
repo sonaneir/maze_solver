@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
-	"mazesolver/internal/solver"
 	"os"
+
+	"mazesolver/internal/solver"
 )
 
 func main() {
