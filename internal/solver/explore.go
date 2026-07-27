@@ -10,6 +10,9 @@ import (
 func (s *Solver) listenToBranches() {
 	for p := range s.pathsToExplore {
 		go s.explore(p)
+		if s.solutionFound() {
+			return
+		}
 	}
 }
 
@@ -30,7 +33,7 @@ func (s *Solver) explore(pathToBranch *path) {
 	pos := pathToBranch.at
 
 	for !s.solutionFound() {
-		candidates := make([]image.Point, 3)
+		candidates := make([]image.Point, 0, 3)
 		for _, n := range neighbours(pos) {
 			if pathToBranch.isPreviousStep(n) {
 				continue

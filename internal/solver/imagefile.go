@@ -3,6 +3,7 @@ package solver
 import (
 	"fmt"
 	"image"
+	"image/draw"
 	"image/png"
 	"os"
 )
@@ -22,9 +23,10 @@ func openMaze(imagePath string) (*image.RGBA, error) {
 
 	rgbaImage, ok := img.(*image.RGBA)
 	if !ok {
-		return nil, fmt.Errorf("expected RGBA image, got %T", img)
+		b := img.Bounds()
+		rgbaImage = image.NewRGBA(b)
+		draw.Draw(rgbaImage, b, img, b.Min, draw.Src)
 	}
-
 	return rgbaImage, nil
 }
 

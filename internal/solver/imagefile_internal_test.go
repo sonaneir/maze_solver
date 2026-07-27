@@ -15,10 +15,6 @@ func TestOpenImage_errors(t *testing.T) {
 			input: "nosuchfile.png",
 			err:   "no such file or directory",
 		},
-		"not a rgba png": {
-			input: "testdata/rgb.png",
-			err:   "expected RGBA image, got *image.Paletted",
-		},
 	}
 
 	for name, tc := range testCases {
