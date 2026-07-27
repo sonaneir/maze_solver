@@ -3,6 +3,7 @@ package solver
 import (
 	"fmt"
 	"image"
+	"image/gif"
 	"log"
 	"sync"
 )
@@ -10,12 +11,17 @@ import (
 // Solver is capable of finding the path from the entrance to the treasure.
 // The maze has to be a RGBA image.
 type Solver struct {
-	maze           *image.RGBA
-	palette        palette
+	maze    *image.RGBA
+	palette palette
+
 	pathsToExplore chan *path
+	quit           chan struct{}
 
 	solution *path
 	mutex    sync.Mutex
+
+	exploredPixels chan image.Point
+	animation      *gif.GIF
 }
 
 // New builds a Solver by taking the path to the PNG maze, encoded in RGBA.
@@ -25,9 +31,13 @@ func New(imagePath string) (*Solver, error) {
 		return nil, fmt.Errorf("cannot open maze image: %w", err)
 	}
 
-	return &Solver{maze: img,
+	return &Solver{
+		maze:           img,
 		palette:        defaultPalette(),
 		pathsToExplore: make(chan *path, 1),
+		quit:           make(chan struct{}),
+		exploredPixels: make(chan image.Point),
+		animation:      &gif.GIF{},
 	}, nil
 }
 
@@ -41,7 +51,23 @@ func (s *Solver) Solve() error {
 	log.Printf("starting at %v", entrance)
 
 	s.pathsToExplore <- &path{previousStep: nil, at: entrance}
-	s.listenToBranches()
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		s.registerExploredPixels()
+	}()
+
+	go func() {
+		defer wg.Done()
+		s.listenToBranches()
+	}()
+
+	wg.Wait()
+
+	s.writeLastFrame()
 
 	return nil
 }

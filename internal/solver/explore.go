@@ -3,24 +3,29 @@ package solver
 import (
 	"image"
 	"log"
+	"sync"
 )
 
 // listenToBranches creates a new goroutine for each branch published in
 // s.pathsToExplore.
 func (s *Solver) listenToBranches() {
-	for p := range s.pathsToExplore {
-		go s.explore(p)
-		if s.solutionFound() {
+	wg := sync.WaitGroup{}
+	defer wg.Wait()
+
+	for {
+		select {
+		case <-s.quit:
+			log.Println("the treasure has been found, stopping worker")
 			return
+		case p := <-s.pathsToExplore:
+			wg.Add(1)
+			go func(path *path) {
+				defer wg.Done()
+
+				s.explore(p)
+			}(p)
 		}
 	}
-}
-
-// solutionFound returns whether the solution was found.
-func (s *Solver) solutionFound() bool {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	return s.solution != nil
 }
 
 // explore one path and publish to the s.pathsToExplore channel
@@ -32,7 +37,13 @@ func (s *Solver) explore(pathToBranch *path) {
 
 	pos := pathToBranch.at
 
-	for !s.solutionFound() {
+	for {
+		select {
+		case <-s.quit:
+			return
+		case s.exploredPixels <- pos:
+		}
+
 		candidates := make([]image.Point, 0, 3)
 		for _, n := range neighbours(pos) {
 			if pathToBranch.isPreviousStep(n) {
@@ -42,11 +53,12 @@ func (s *Solver) explore(pathToBranch *path) {
 			switch s.maze.RGBAAt(n.X, n.Y) {
 			case s.palette.treasure:
 				s.mutex.Lock()
-				defer s.mutex.Unlock()
 				if s.solution == nil {
 					s.solution = &path{previousStep: pathToBranch, at: n}
 					log.Printf("Treasure found: %v!", s.solution.at)
+					close(s.quit)
 				}
+				s.mutex.Unlock()
 				return
 			case s.palette.path:
 				candidates = append(candidates, n)
@@ -60,7 +72,16 @@ func (s *Solver) explore(pathToBranch *path) {
 
 		for _, candidate := range candidates[1:] {
 			branch := &path{previousStep: pathToBranch, at: candidate}
-			s.pathsToExplore <- branch
+			// We are sure we send to pathsToExplore only when the quit channel isn't closed.
+			// A goroutine might have found the treasure since the check at the start of the loop.
+			select {
+			// s.quit returns a zero value only when the channel was closed, here -- when the exploration should end.
+			case <-s.quit:
+				log.Printf("I'm an unlucky branch, someone else found the treasure, I give up at position %v.", pos)
+				return
+			case s.pathsToExplore <- branch:
+				// continue execution after the select block
+			}
 		}
 
 		pathToBranch = &path{previousStep: pathToBranch, at: candidates[0]}

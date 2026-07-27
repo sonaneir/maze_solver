@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
+	"image/gif"
 	"image/png"
+	"log"
 	"os"
+	"strings"
 )
 
 // openMaze opens a RGBA png image from a path.
@@ -54,6 +57,36 @@ func (s *Solver) SaveSolution(outputPath string) error {
 	err = png.Encode(f, s.maze)
 	if err != nil {
 		return fmt.Errorf("unable to write output image at %s: %w", outputPath, err)
+	}
+
+	gifPath := strings.Replace(outputPath, "png", "gif", -1)
+	err = s.saveAnimation(gifPath)
+
+	if err != nil {
+		return fmt.Errorf("unable to write output animation at %s", gifPath)
+	}
+
+	return nil
+}
+
+// saveAnimation writes the gif file.
+func (s *Solver) saveAnimation(gifPath string) error {
+	outputImage, err := os.Create(gifPath)
+	if err != nil {
+		return fmt.Errorf("unable to create output gif at %s: %w", gifPath, err)
+	}
+
+	defer func() {
+		if closeErr := outputImage.Close(); closeErr != nil {
+			// Return err and closeErr, in worst case scenario.
+			err = errors.Join(err, fmt.Errorf("unable to close file: %w", closeErr))
+		}
+	}()
+
+	log.Printf("animation contains %d frames\n", len(s.animation.Image))
+	err = gif.EncodeAll(outputImage, s.animation)
+	if err != nil {
+		return fmt.Errorf("unable to encode gif: %w", err)
 	}
 
 	return nil
