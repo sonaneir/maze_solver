@@ -1,6 +1,7 @@
 package solver
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"image/draw"
@@ -30,8 +31,30 @@ func openMaze(imagePath string) (*image.RGBA, error) {
 	return rgbaImage, nil
 }
 
-// SaveSolution saves the image as a PNG file
-// with the solution path highlighted.
+// SaveSolution saves the image as a PNG file with the solution path
+// highlighted.
 func (s *Solver) SaveSolution(outputPath string) error {
+	f, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("unable to create output image file at %s", outputPath)
+	}
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("unable to close file: %w", closeErr))
+		}
+	}()
+
+	stepsFromTresure := s.solution
+
+	for stepsFromTresure != nil {
+		s.maze.Set(stepsFromTresure.at.X, stepsFromTresure.at.Y, s.palette.solution)
+		stepsFromTresure = stepsFromTresure.previousStep
+	}
+
+	err = png.Encode(f, s.maze)
+	if err != nil {
+		return fmt.Errorf("unable to write output image at %s: %w", outputPath, err)
+	}
+
 	return nil
 }
