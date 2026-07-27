@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"log"
+	"sync"
 )
 
 // Solver is capable of finding the path from the entrance to the treasure.
@@ -12,6 +13,22 @@ type Solver struct {
 	maze           *image.RGBA
 	palette        palette
 	pathsToExplore chan *path
+
+	solution *path
+	mutex    sync.Mutex
+}
+
+// New builds a Solver by taking the path to the PNG maze, encoded in RGBA.
+func New(imagePath string) (*Solver, error) {
+	img, err := openMaze(imagePath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open maze image: %w", err)
+	}
+
+	return &Solver{maze: img,
+		palette:        defaultPalette(),
+		pathsToExplore: make(chan *path, 1),
+	}, nil
 }
 
 // Solve finds the path from the entrance to the treasure.
@@ -23,17 +40,10 @@ func (s *Solver) Solve() error {
 
 	log.Printf("starting at %v", entrance)
 
+	s.pathsToExplore <- &path{previousStep: nil, at: entrance}
+	s.listenToBranches()
+
 	return nil
-}
-
-// New builds a Solver by taking the path to the PNG maze, encoded in RGBA.
-func New(imagePath string) (*Solver, error) {
-	img, err := openMaze(imagePath)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open maze image: %w", err)
-	}
-
-	return &Solver{maze: img}, nil
 }
 
 // findEntrance returns the position of the maze entrance on the image.

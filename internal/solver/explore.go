@@ -1,0 +1,66 @@
+package solver
+
+import (
+	"image"
+	"log"
+)
+
+// listenToBranches creates a new goroutine for each branch published in
+// s.pathsToExplore.
+func (s *Solver) listenToBranches() {
+	for p := range s.pathsToExplore {
+		go s.explore(p)
+	}
+}
+
+// solutionFound returns whether the solution was found.
+func (s *Solver) solutionFound() bool {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return s.solution != nil
+}
+
+// explore one path and publish to the s.pathsToExplore channel
+// any branch we discover that we don't take.
+func (s *Solver) explore(pathToBranch *path) {
+	if pathToBranch == nil {
+		return
+	}
+
+	pos := pathToBranch.at
+
+	for !s.solutionFound() {
+		candidates := make([]image.Point, 3)
+		for _, n := range neighbours(pos) {
+			if pathToBranch.isPreviousStep(n) {
+				continue
+			}
+
+			switch s.maze.RGBAAt(n.X, n.Y) {
+			case s.palette.treasure:
+				s.mutex.Lock()
+				defer s.mutex.Unlock()
+				if s.solution == nil {
+					s.solution = &path{previousStep: pathToBranch, at: n}
+					log.Printf("Treasure found: %v!", s.solution.at)
+				}
+				return
+			case s.palette.path:
+				candidates = append(candidates, n)
+			}
+		}
+
+		if len(candidates) == 0 {
+			log.Printf("I must have taken the wrong turn at position %v.", pos)
+			return
+		}
+
+		for _, candidate := range candidates[1:] {
+			branch := &path{previousStep: pathToBranch, at: candidate}
+			s.pathsToExplore <- branch
+		}
+
+		pathToBranch = &path{previousStep: pathToBranch, at: candidates[0]}
+		pos = candidates[0]
+	}
+}
